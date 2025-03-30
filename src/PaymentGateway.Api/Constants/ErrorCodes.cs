@@ -22,7 +22,6 @@ public static class ErrorCodes
         public const string CurrencyLength = "ERR_CURRENCY_LENGTH";
         public const string CurrencyInvalid = "ERR_CURRENCY_INVALID";
 
-        // todo: ???
         public const string AmountRequired = "ERR_AMOUNT_REQUIRED";
         public const string AmountNonPositive = "ERR_AMOUNT_NON_POSITIVE";
 

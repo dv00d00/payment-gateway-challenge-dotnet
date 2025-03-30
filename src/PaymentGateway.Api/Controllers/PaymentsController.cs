@@ -9,7 +9,7 @@ namespace PaymentGateway.Api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-public class PaymentsController() : Controller
+public class PaymentsController : Controller
 {
     [HttpPost]
     [ProducesResponseType(typeof(PostPaymentResponse), 200)]
@@ -18,7 +18,6 @@ public class PaymentsController() : Controller
         [FromServices]IPaymentValidator validator, 
         [FromServices]IBankClient bankClient, 
         [FromServices]PaymentsRepository paymentsRepository,
-        
         [FromBody]PostPaymentRequest paymentRequestDto)
     {
         var paymentIntent = validator.Validate(paymentRequestDto);
