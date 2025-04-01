@@ -175,8 +175,5 @@ public class PaymentsControllerTests(ITestOutputHelper output)
         return Result<PaymentDetails>.Success(new PaymentDetails(cardNumber, future, money, cvv));
     }
 
-    private class FixedSystemTime(DateOnly fixedDate) : ISystemTime
-    {
-        public DateOnly UtcToday => fixedDate;
-    }
+    
 }

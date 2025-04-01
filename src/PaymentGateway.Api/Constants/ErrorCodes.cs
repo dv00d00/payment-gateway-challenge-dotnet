@@ -35,4 +35,11 @@ public static class ErrorCodes
         public const string RejectedByBank = "ERR_REJECTED_BY_BANK";
         public const string AuthorizationCodeInvalid = "ERR_AUTHORIZATION_CODE_FROM_BANK_INVALID";
     }
+
+    public static class Idempotency
+    {
+        public const string MissingIdempotencyKey = "ERR_IDEMPOTENCY_KEY_MISSING";
+        public const string InvalidIdempotencyKey = "ERR_IDEMPOTENCY_KEY_INVALID";
+        public const string IdempotencyKeyAlreadyUsed = "ERR_IDEMPOTENCY_KEY_ALREADY_USED";
+    }
 }

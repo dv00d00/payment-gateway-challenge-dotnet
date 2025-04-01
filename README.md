@@ -1,4 +1,4 @@
-# Payment Gateway – Take-Home Assignment
+# Payment Gateway
 
 ## Summary
 
