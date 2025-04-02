@@ -2,7 +2,7 @@
 
 public class ClientErrorResponse
 {
-    public required IEnumerable<Issue> Issues { get; init; }
+    public required IReadOnlyCollection<Issue> Issues { get; init; }
     
     public class Issue
     {

@@ -3,7 +3,6 @@ using PaymentGateway.Api.Models.Domain;
 
 namespace PaymentGateway.Api.Services;
 
-// todo: where to put?
 public abstract class StoredPayment
 {
     public required Guid Id { get; init; }

@@ -3,7 +3,6 @@ using PaymentGateway.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -34,7 +33,8 @@ app.MapControllers();
 app.Run();
 
 // todo: comb swagger
-// todo: retry policy and circuit breaker and idempotency
+// todo: retry policy and circuit breaker and **idempotency**
+// todo: http client settings
 // todo: logging, metrics, and tracing
 // todo: health check endpoint
-// todo: authentication, authorization, and identity ???
+// todo: authentication, authorization

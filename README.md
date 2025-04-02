@@ -71,7 +71,7 @@ These areas were intentionally left out or only partially explored due to time c
 
 ---
 
-## 🛠️ Improvements
+## Improvements
 
 - Add distributed **idempotency store**
 - Add **logging**, **tracing**, and **metrics** (e.g., Prometheus/OpenTelemetry)
@@ -80,3 +80,11 @@ These areas were intentionally left out or only partially explored due to time c
 - Add **persistence** for failed requests beyond max retry
 - Secure **encryption at rest** for card data (even last four digits)
 - Circuit breaker, bulkhead, and retry strategies for **resilience**
+
+## Notes
+
+Throughout development, I felt a mix of dread and excitement—pretty typical when dealing with distributed systems, especially in the context of payments, where even small failures can have outsized consequences. The task called for a simple and maintainable solution that shouldn’t take more than 4 hours.
+
+I’ll be honest: I didn’t quite manage to keep it simple. Maybe that’s the baggage of having seen too many real-world failures over the years. So I focused on the things I could control—like getting the domain model right. Even then, I couldn’t find peace of mind, especially after experimenting with idempotency on a separate branch. The tension between simplicity and robustness is very real here.
+
+That said, I really enjoyed the challenge. It pushed me to think deeply about trade-offs, revisit some core design principles, and reflect on my instincts as a developer. Given more time, there’s plenty I’d love to refine—but even within the scope of this take-home, I’m happy with the direction I took and the decisions I made.
