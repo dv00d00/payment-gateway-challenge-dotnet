@@ -14,11 +14,14 @@ public record Money
         Currency = currency;
     }
     
-    public static Result<Money> TryCreate(int amount, Currency currency)
+    public static Result<Money> TryCreate(int? amount, Currency currency)
     {
+        if (!amount.HasValue)
+            return Result<Money>.Failure(new Error(ErrorCodes.PaymentGateway.AmountRequired, "Amount is required."));
+        
         if (amount <= 0)
             return Result<Money>.Failure(new Error(ErrorCodes.PaymentGateway.AmountNonPositive, "Amount must be greater than zero."));
 
-        return Result<Money>.Success(new Money(amount, currency));
+        return Result<Money>.Success(new Money(amount.Value, currency));
     }
 }

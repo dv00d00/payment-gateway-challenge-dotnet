@@ -45,9 +45,10 @@ public class Result<T>
     public static Result<T> Success(T value) => new Result<T>(value);
     public static Result<T> Failure(Error error) => new Result<T>(error);
     public static Result<T> Failure(IEnumerable<Error> errors) => new Result<T>(errors);
+    public static Result<T> Failure(string code, string message) => new Result<T>(new Error(code, message));
 }
 
-public static class ResultExtensions
+public static class Result
 {
     // Monadic bind / flatMap
     public static Result<U> Bind<T, U>(this Result<T> result, Func<T, Result<U>> func)
@@ -136,4 +137,6 @@ public static class ResultExtensions
         var errors = r1.Errors.Concat(r2.Errors).Concat(r3.Errors).Concat(r4.Errors).Concat(r5.Errors);
         return Result<(T1, T2, T3, T4, T5)>.Failure(errors);
     }
+    
+    public static Result<T> Success<T>(T value) => Result<T>.Success(value);
 }

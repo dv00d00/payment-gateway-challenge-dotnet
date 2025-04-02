@@ -23,7 +23,7 @@ public class PaymentValidator(ISystemTime systemTime) : IPaymentValidator
         
         var maybeCvv = CVV.TryCreate(request.CVV);
         
-        return ResultExtensions.Combine(maybeCardNumber, maybeFutureExpiryDate, maybeMoney, maybeCvv)
+        return Result.Combine(maybeCardNumber, maybeFutureExpiryDate, maybeMoney, maybeCvv)
             .Select(args =>
             {
                 var (cn, fed, m, cvv) = args;

@@ -1,6 +1,7 @@
-﻿using PaymentGateway.Api.Constants;
-using PaymentGateway.Api.Services;
+﻿using PaymentGateway.Api.Services;
 using PaymentGateway.Api.Types;
+
+using static PaymentGateway.Api.Constants.ErrorCodes.PaymentGateway;
 
 namespace PaymentGateway.Api.Models.Domain;
 
@@ -24,11 +25,11 @@ public record FutureExpiryDate
         // The card remains active until the last day of the month listed 
         
         if (expiryDate.Year < today.Year)
-            return Result<FutureExpiryDate>.Failure(new Error(ErrorCodes.PaymentGateway.ExpiryYearPast, "The expiry year is in the past."));
+            return Result<FutureExpiryDate>.Failure(new Error(ExpiryYearPast, "The expiry year is in the past."));
         
         if (expiryDate.Year == today.Year && expiryDate.Month < today.Month)
-            return Result<FutureExpiryDate>.Failure(new Error(ErrorCodes.PaymentGateway.ExpiryDateInPast, "The expiry date must be in the future."));
+            return Result<FutureExpiryDate>.Failure(new Error(ExpiryDateInPast, "The expiry date must be in the future."));
 
-        return Result<FutureExpiryDate>.Success(new FutureExpiryDate(expiryDate.Month, expiryDate.Year, today));
+        return Result.Success(new FutureExpiryDate(expiryDate.Month, expiryDate.Year, today));
     }
 }
