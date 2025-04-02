@@ -27,7 +27,7 @@ public record CardNumber
             return Result<CardNumber>.Failure(
                 new Error(CardNumberNumeric, "Card number must only contain numeric characters."));
 
-        return Result<CardNumber>.Success(new CardNumber(value));
+        return Result.Success(new CardNumber(value));
     }
     
     public CardNumberLastFour LastFour => CardNumberLastFour.FromCardNumber(this);

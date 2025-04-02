@@ -1,5 +1,6 @@
-﻿using PaymentGateway.Api.Constants;
-using PaymentGateway.Api.Types;
+﻿using PaymentGateway.Api.Types;
+
+using static PaymentGateway.Api.Constants.ErrorCodes.AcquiringBank;
 
 namespace PaymentGateway.Api.Models.Domain;
 
@@ -15,7 +16,7 @@ public record AuthorizationCode
     public static Result<AuthorizationCode> TryCreate(string? code)
     {
         return string.IsNullOrWhiteSpace(code)
-            ? Result<AuthorizationCode>.Failure(new Error(ErrorCodes.AcquiringBank.AuthorizationCodeInvalid, "Authorization code provided is empty."))
+            ? Result<AuthorizationCode>.Failure(new Error(AuthorizationCodeInvalid, "Authorization code provided is empty."))
             : Result<AuthorizationCode>.Success(new AuthorizationCode(code));
     }
 }
