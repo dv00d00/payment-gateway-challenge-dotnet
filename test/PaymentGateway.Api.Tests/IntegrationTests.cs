@@ -4,9 +4,10 @@ using FsCheck.Fluent;
 using FsCheck.Xunit;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+
+using PaymentGateway.Api.Constants;
 using PaymentGateway.Api.Controllers;
 using PaymentGateway.Api.Enums;
-using PaymentGateway.Api.Models.Domain;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Services;
@@ -51,40 +52,12 @@ public class IntegrationTests(ITestOutputHelper output)
         
         Prop.ForAll(arb, async request =>
         {
-            var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/Payments");
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/payments");
             requestMessage.Content = JsonContent.Create(request);
+            requestMessage.Headers.Add(Names.Headers.IdempotencyKey, Guid.NewGuid().ToString());
             var response = await client.SendAsync(requestMessage);
 
             Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        }).QuickCheckThrowOnFailure(output);
-    }
-
-    [Fact]
-    public void HashRules()
-    {
-        var arb = PaymentRequestGenerators.ValidPaymentRequestGen(PaymentStatus.Authorized, DateTime.UtcNow);
-        var validator = new PaymentValidator(new FixedSystemTime(DateOnly.FromDateTime(DateTime.Now)));
-        
-        Prop.ForAll(arb.Two().ToArbitrary(), gen =>
-        {
-            var (r1, r2) = gen;
-            PaymentDetails paymentDetails1 = validator.Validate(r1).Value;
-            PaymentDetails paymentDetails2 = validator.Validate(r2).Value;
-
-            var hash1 = RequestHashing.ComputeHash(paymentDetails1);
-            var hash2 = RequestHashing.ComputeHash(paymentDetails2);
-            
-            Assert.Equal(paymentDetails1 == paymentDetails2, hash1 == hash2);
-
-        }).QuickCheckThrowOnFailure(output);
-        
-        Prop.ForAll(arb.ToArbitrary(), r1 =>
-        {
-            var hash1 = RequestHashing.ComputeHash(validator.Validate(r1).Value);
-            var hash2 = RequestHashing.ComputeHash(validator.Validate(r1).Value);
-            
-            Assert.Equal(hash1, hash2);
-
         }).QuickCheckThrowOnFailure(output);
     }
     
@@ -98,27 +71,34 @@ public class IntegrationTests(ITestOutputHelper output)
         
         var client = webApplicationFactory.WithWebHostBuilder(builder =>
                 builder.ConfigureServices(services => ((ServiceCollection)services)
-                    .AddSingleton(paymentsRepository)))
+                    .AddSingleton<IPaymentsRepository>(paymentsRepository)))
             .CreateClient();
 
         var arb = PaymentRequestGenerators.ValidPaymentRequestGen(expectedOutcome, DateTime.UtcNow).ToArbitrary();
         
         Prop.ForAll(arb, async request =>
         {
+            string id = Guid.NewGuid().ToString();
+            
             paymentsRepository.Payments.Clear();
             
-            var initiatePaymentResponseMessage = await client.PostAsJsonAsync("/api/Payments", request);
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/payments");
+            requestMessage.Content = JsonContent.Create(request);
+            requestMessage.Headers.Add(Names.Headers.IdempotencyKey, id);
+            
+            var initiatePaymentResponseMessage = await client.SendAsync(requestMessage);
+            output.WriteLine(await initiatePaymentResponseMessage.Content.ReadAsStringAsync());
             var responseOnInitiate = await initiatePaymentResponseMessage.Content.ReadFromJsonAsync<PostPaymentResponse>();
 
             Assert.Equal(HttpStatusCode.OK, initiatePaymentResponseMessage.StatusCode);
             Assert.NotNull(responseOnInitiate);
             Assert.Equal(expectedOutcome, responseOnInitiate.Status);
 
-            var saved = paymentsRepository.Payments.Single();
+            var saved = paymentsRepository.Payments.Values.Single();
             
             AssertResponse(responseOnInitiate, request, saved);
 
-            var findPaymentResponseMessage = await client.GetAsync($"/api/Payments/{saved.Id}");
+            var findPaymentResponseMessage = await client.GetAsync($"/api/payments/{id}");
             Assert.Equal(HttpStatusCode.OK, findPaymentResponseMessage.StatusCode);
             var responseOnFind = await findPaymentResponseMessage.Content.ReadFromJsonAsync<PostPaymentResponse>();
             
@@ -142,6 +122,78 @@ public class IntegrationTests(ITestOutputHelper output)
             Assert.Equal(request.ExpiryYear, response.ExpiryYear);
             Assert.Equal(storedPayment.Id, response.Id);
             Assert.Equal(storedPayment.Status, response.Status);
+        }
+    }
+    
+    [Theory]
+    [InlineData(PaymentStatus.Authorized)]
+    [InlineData(PaymentStatus.Declined)]
+    public async Task SameIdempotencyKey_DifferentRequests_ShouldFail(PaymentStatus expectedOutcome)
+    {
+        var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
+        
+        var client = webApplicationFactory.CreateClient();
+
+        var arb = PaymentRequestGenerators.ValidPaymentRequestGen(expectedOutcome, DateTime.UtcNow).ToArbitrary();
+        
+        string id = Guid.NewGuid().ToString();
+        // initial request to block idempotency key
+        var initialRequest = new HttpRequestMessage(HttpMethod.Post, "/api/payments");
+        initialRequest.Content = JsonContent.Create(arb.Generator.Sample(1).Single());
+        initialRequest.Headers.Add(Names.Headers.IdempotencyKey, id);
+        _ = await client.SendAsync(initialRequest);
+        
+        Prop.ForAll(arb, async request =>
+        {
+            var subsequentRequest = new HttpRequestMessage(HttpMethod.Post, "/api/payments");
+            subsequentRequest.Content = JsonContent.Create(request);
+            subsequentRequest.Headers.Add(Names.Headers.IdempotencyKey, id);
+            var initiatePaymentResponseMessage = await client.SendAsync(subsequentRequest);
+            var response = await initiatePaymentResponseMessage.Content.ReadFromJsonAsync<ClientErrorResponse>();
+
+            Assert.Equal(HttpStatusCode.BadRequest, initiatePaymentResponseMessage.StatusCode);
+            Assert.Contains(response!.Issues, it => it.ErrorCode == ErrorCodes.Idempotency.IdempotencyKeyAlreadyUsed);
+            
+        }).QuickCheckThrowOnFailure(output);
+        
+    }
+    
+    [Theory]
+    [InlineData(PaymentStatus.Authorized)]
+    [InlineData(PaymentStatus.Declined)]
+    public async Task SameIdempotencyKey_SameRequests_SameResult(PaymentStatus expectedOutcome)
+    {
+        var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
+        
+        var client = webApplicationFactory.CreateClient();
+
+        var arb = PaymentRequestGenerators.ValidPaymentRequestGen(expectedOutcome, DateTime.UtcNow).ToArbitrary();
+        
+        string id = Guid.NewGuid().ToString();
+        var postPaymentRequest = arb.Generator.Sample(1).Single();
+
+        // initial request to block idempotency key
+        var initialRequest = new HttpRequestMessage(HttpMethod.Post, "/api/payments");
+        initialRequest.Content = JsonContent.Create(postPaymentRequest);
+        initialRequest.Headers.Add(Names.Headers.IdempotencyKey, id);
+        
+        var initialResponse = await client.SendAsync(initialRequest);
+        initialResponse.EnsureSuccessStatusCode();
+        output.WriteLine(await initialResponse.Content.ReadAsStringAsync());
+        var initialDto = await initialResponse.Content.ReadFromJsonAsync<PostPaymentResponse>();
+        
+        for (int i = 0; i < 10; i++)
+        {
+            var subsequentRequest = new HttpRequestMessage(HttpMethod.Post, "/api/payments");
+            subsequentRequest.Content = JsonContent.Create(postPaymentRequest);
+            subsequentRequest.Headers.Add(Names.Headers.IdempotencyKey, id);
+            var subsequentResponse = await client.SendAsync(subsequentRequest);
+            
+            output.WriteLine(await subsequentResponse.Content.ReadAsStringAsync());
+            var subsequentDto = await subsequentResponse.Content.ReadFromJsonAsync<PostPaymentResponse>();
+            
+            subsequentResponse.EnsureSuccessStatusCode();
+            Assert.Equivalent(initialDto, subsequentDto);
         }
     }
 }

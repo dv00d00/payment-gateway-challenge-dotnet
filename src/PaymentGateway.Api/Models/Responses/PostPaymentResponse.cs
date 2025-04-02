@@ -9,7 +9,7 @@ public class PostPaymentResponse
     public required Guid Id { get; init; }
     
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public PaymentStatus Status { get; init; }
+    public required PaymentStatus Status { get; init; }
     
     public required int CardNumberLastFour { get; init; }
     public required int ExpiryMonth { get; init; }

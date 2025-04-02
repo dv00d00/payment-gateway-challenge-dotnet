@@ -17,7 +17,7 @@ public record Currency
         Value = value;
     }
     
-    public static Result<Currency> TryCreate(string value)
+    public static Result<Currency> TryCreate(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return Result<Currency>.Failure(new Error(ErrorCodes.PaymentGateway.CurrencyRequired, "Currency is required."));

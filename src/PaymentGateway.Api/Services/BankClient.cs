@@ -4,7 +4,6 @@ using PaymentGateway.Api.Models.Domain;
 
 namespace PaymentGateway.Api.Services;
 
-// conversation starter
 public enum Justification { UnrecognizedResponse, TransportError, Timeout, Exception }
 
 public abstract record BankResponse

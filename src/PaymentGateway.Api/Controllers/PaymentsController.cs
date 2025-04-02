@@ -1,6 +1,4 @@
-﻿using System.Reflection.Metadata;
-
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using PaymentGateway.Api.Constants;
 using PaymentGateway.Api.Models.Domain;
 using PaymentGateway.Api.Models.Requests;
@@ -12,7 +10,7 @@ namespace PaymentGateway.Api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-public class PaymentsController(PaymentsRepository paymentsRepository) : Controller
+public class PaymentsController(IPaymentsRepository paymentsRepository) : Controller
 {
     [HttpPost]
     [ProducesResponseType(typeof(PostPaymentResponse), 200)]
@@ -20,13 +18,13 @@ public class PaymentsController(PaymentsRepository paymentsRepository) : Control
     public async Task<ActionResult<PostPaymentResponse>> InitiatePayment(
         [FromServices] IPaymentValidator validator,
         [FromServices] IBankClient bankClient,
-        [FromServices] IdempotencyStore guard,
-        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        [FromServices] IIdempotencyStore guard,
+        [FromHeader(Name = Names.Headers.IdempotencyKey)] string? idempotencyKey,
         [FromBody] PostPaymentRequest paymentRequestDto)
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey) || !Guid.TryParse(idempotencyKey, out var id))
             return Error([
-                new(ErrorCodes.Idempotency.MissingIdempotencyKey, "Idempotency-Key header is required and must be a valid GUID")
+                new Error(ErrorCodes.Idempotency.MissingIdempotencyKey, $"{Names.Headers.IdempotencyKey} header is required and must be a valid GUID")
             ]);
 
         var paymentIntent = validator.Validate(paymentRequestDto);
@@ -37,27 +35,27 @@ public class PaymentsController(PaymentsRepository paymentsRepository) : Control
 
         var paymentDetails = paymentIntent.Value;
 
-        var observed = await guard.TryFindResultOrGetLock(id, paymentDetails);
+        var idempotencyCheck = await guard.TryFindResultOrGetLock(id, paymentDetails);
 
-        switch (observed)
+        switch (idempotencyCheck)
         {
-            case IdResult.Cached(var response):
+            case IdempotencyCheckResult.Cached(var response):
                 return await ProcessBankResponse(id, response, paymentDetails);
 
-            case IdResult.NoResultLockObtained(var handle):
-                
-                var bankResponse = await bankClient.InitiatePayment(paymentDetails);
-                await guard.SaveResult(id, paymentDetails, bankResponse);
-                await handle.DisposeAsync();
-
-                return await ProcessBankResponse(id, bankResponse, paymentDetails);
-
-            case IdResult.Error(IdEnterError.HashMismatch):
+            case IdempotencyCheckResult.NoResultLockObtained(var handle):
+                {
+                    await using var _ = handle;
+                    var bankResponse = await bankClient.InitiatePayment(paymentDetails);
+                    await guard.SaveResultAndReleaseLock(handle, id, paymentDetails, bankResponse);
+                    return await ProcessBankResponse(id, bankResponse, paymentDetails);
+                }
+            
+            case IdempotencyCheckResult.Error(IdempotencyCheckError.HashMismatch):
                 return Error([
-                    new(ErrorCodes.Idempotency.IdempotencyKeyAlreadyUsed, "Idempotency key was already used with different data")
+                    new(ErrorCodes.Idempotency.IdempotencyKeyAlreadyUsed, "Idempotency key was already used with different request")
                 ]);
 
-            case IdResult.Error(IdEnterError.CantGetLock):
+            case IdempotencyCheckResult.Error(IdempotencyCheckError.LockContested):
                 return StatusCode(StatusCodes.Status429TooManyRequests);
 
             default:
@@ -70,7 +68,7 @@ public class PaymentsController(PaymentsRepository paymentsRepository) : Control
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PostPaymentResponse>> GetPaymentAsync([FromRoute] Guid id)
     {
-        var payment = await paymentsRepository.Get(id);
+        var payment = await paymentsRepository.TryFind(id);
         return payment is null ? NotFound() : Success(payment);
     }
 

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+using PaymentGateway.Api.Constants;
 using PaymentGateway.Api.Controllers;
 using PaymentGateway.Api.Models.Domain;
 using PaymentGateway.Api.Models.Requests;
@@ -24,9 +25,10 @@ public class PaymentsControllerTests(ITestOutputHelper output)
     public async Task RetrievesAPaymentSuccessfully()
     {
         // Arrange
+        Guid id = Guid.NewGuid();
         var payment = new StoredPayment.Authorized
         {
-            Id = Guid.NewGuid(),
+            Id = id,
             Money = Money.TryCreate(_random.Next(1, 10000), Currency.TryCreate("GBP").Value).Value,
             CardNumberLastFour = CardNumberLastFour.FromCardNumber(CardNumber.TryCreate("1234567890123456").Value),
             AuthorizationCode = "...",
@@ -34,16 +36,18 @@ public class PaymentsControllerTests(ITestOutputHelper output)
         };
         
         var paymentsRepository = new PaymentsRepository();
-        paymentsRepository.Payments.Add(payment);
+        paymentsRepository.Payments.Add(id, payment);
 
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
         var client = webApplicationFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services => ((ServiceCollection)services)
-                .AddSingleton(paymentsRepository)))
+                .AddSingleton<IPaymentsRepository>(paymentsRepository)))
             .CreateClient();
 
         // Act
-        var response = await client.GetAsync($"/api/payments/{payment.Id}");
+        var response = await client.GetAsync($"/api/Payments/{id}");
+        output.WriteLine(await response.Content.ReadAsStringAsync());
+        
         var paymentResponse = await response.Content.ReadFromJsonAsync<PostPaymentResponse>();
         
         // Assert
@@ -57,6 +61,7 @@ public class PaymentsControllerTests(ITestOutputHelper output)
         // Arrange
         var webApplicationFactory = new WebApplicationFactory<PaymentsController>();
         var client = webApplicationFactory.CreateClient();
+        client.DefaultRequestHeaders.Add(Names.Headers.IdempotencyKey, Guid.NewGuid().ToString());
         
         // Act
         var response = await client.GetAsync($"/api/payments/{Guid.NewGuid()}");
@@ -78,7 +83,7 @@ public class PaymentsControllerTests(ITestOutputHelper output)
                 }));
 
         var client = webApplicationFactory.CreateClient();
-
+        client.DefaultRequestHeaders.Add(Names.Headers.IdempotencyKey, Guid.NewGuid().ToString());
         var response = await client.PostAsJsonAsync("/api/payments", ValidPostRequest());
         var raw = await response.Content.ReadAsStringAsync();
         output.WriteLine(raw);
@@ -115,7 +120,11 @@ public class PaymentsControllerTests(ITestOutputHelper output)
 
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/payments", ValidPostRequest());
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/payments");
+        request.Content = JsonContent.Create(ValidPostRequest());
+        request.Headers.Add(Names.Headers.IdempotencyKey, Guid.NewGuid().ToString());
+
+        var response = await client.SendAsync(request);
 
         Assert.Equal(expectedStatus, response.StatusCode);
     }
@@ -131,11 +140,12 @@ public class PaymentsControllerTests(ITestOutputHelper output)
                 {
                     services.AddSingleton<IPaymentValidator>(_ => new StubValidator(ValidPaymentDetails()));
                     services.AddSingleton<IBankClient>(_ => new StubBankClient(new BankResponse.Authorized(authorizationCode)));
-                    services.AddSingleton(new PaymentsRepository());
+                    services.AddSingleton<IPaymentsRepository>(new PaymentsRepository());
                 }));
 
         var client = webApplicationFactory.CreateClient();
 
+        client.DefaultRequestHeaders.Add(Names.Headers.IdempotencyKey, Guid.NewGuid().ToString());
         var response = await client.PostAsJsonAsync("/api/payments", ValidPostRequest());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

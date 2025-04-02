@@ -3,11 +3,8 @@ using PaymentGateway.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-builder.Services.AddSingleton<PaymentsRepository>();
 
 builder.Services.AddHttpClient("payments", client =>
 {
@@ -17,6 +14,9 @@ builder.Services.AddHttpClient("payments", client =>
 
 builder.Services.AddSingleton<ISystemTime, SystemSystemTime>();
 builder.Services.AddSingleton<IBankClient, BankClient>();
+builder.Services.AddSingleton<IPaymentValidator, PaymentValidator>();
+builder.Services.AddSingleton<IIdempotencyStore, IdempotencyStore>();
+builder.Services.AddSingleton<IPaymentsRepository, PaymentsRepository>();
 builder.Services.AddSingleton<IPaymentValidator, PaymentValidator>();
 
 var app = builder.Build();
@@ -37,4 +37,4 @@ app.Run();
 // todo: retry policy and circuit breaker and idempotency
 // todo: logging, metrics, and tracing
 // todo: health check endpoint
-// todo: authentication, authorization, and identity ???
+// todo: security

@@ -12,7 +12,7 @@ public record CVV
 
     public string Value { get; }
 
-    public static Result<CVV> TryCreate(string value)
+    public static Result<CVV> TryCreate(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return Result<CVV>.Failure(new Error(ErrorCodes.PaymentGateway.CvvRequired, "CVV is required."));
